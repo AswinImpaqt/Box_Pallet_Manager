@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Box and Pallet Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', Arial, sans-serif;
+            background: linear-gradient(135deg, #000 70%, #6b0d0d);
+            color: #fff;
+        }
+        main {
+            max-width: 1200px;
+            margin: auto;
+            padding: 20px;
+        }
+        h2, h3 {
+            text-align: center;
+        }
+        label, button {
+            display: block;
+            margin: 10px 0;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #222;
+            border: 1px solid #fff;
+            color: #fff;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #d32f2f;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #b71c1c;
+        }
+        canvas {
+            display: block;
+            background-color: #333;
+            border: 1px solid #fff;
+            margin: 20px auto;
+        }
+        .position-list {
+            background-color: #222;
+            padding: 10px;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h2>Box and Pallet Manager</h2>
+        <form id="inputForm">
+            <label for="palletLength">Pallet Length (mm):</label>
+            <input type="number" id="palletLength" placeholder="Enter pallet length" required>
+
+            <label for="palletWidth">Pallet Width (mm):</label>
+            <input type="number" id="palletWidth" placeholder="Enter pallet width" required>
+
+            <label for="boxLength">Box Length (mm):</label>
+            <input type="number" id="boxLength" placeholder="Enter box length" required>
+
+            <label for="boxWidth">Box Width (mm):</label>
+            <input type="number" id="boxWidth" placeholder="Enter box width" required>
+
+            <button type="button" onclick="initialize()">Check Compatibility</button>
+            <button type="button" onclick="addBox()">Add Box</button>
+        </form>
+
+        <canvas id="palletCanvas" width="500" height="500"></canvas>
+
+        <button id="lockButton" style="display:none;" onclick="lockBox()">Lock Position</button>
+        <button id="unlockButton" style="display:none;" onclick="unlockBox()">Unlock Box</button>
+
+        <div id="positions" class="position-list">
+            <h3>Locked Positions</h3>
+            <ul id="positionList"></ul>
+        </div>
+    </main>
+
+    <script>
+        const canvas = document.getElementById("palletCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let scaleFactor = 1;
+        let pallet = { length: 0, width: 0 };
+        let boxes = [];
+        let activeBox = null;
+        const boxImage = new Image();
+        boxImage.src = "carton_box.png"; // Replace with the path to your carton box image.
+
+        function initialize() {
+            const palletLength = parseFloat(document.getElementById("palletLength").value);
+            const palletWidth = parseFloat(document.getElementById("palletWidth").value);
+
+            if (isNaN(palletLength) || isNaN(palletWidth)) {
+                alert("Please enter valid numerical values.");
+                return;
+            }
+
+            pallet.length = palletLength;
+            pallet.width = palletWidth;
+            scaleFactor = Math.min(canvas.width / palletLength, canvas.height / palletWidth);
+
+            drawPallet();
+        }
+
+        function drawPallet() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const scaledLength = pallet.length * scaleFactor;
+            const scaledWidth = pallet.width * scaleFactor;
+
+            const palletX = (canvas.width - scaledLength) / 2;
+            const palletY = (canvas.height - scaledWidth) / 2;
+
+            ctx.fillStyle = "#d32f2f";
+            ctx.fillRect(palletX, palletY, scaledLength, scaledWidth);
+
+            boxes.forEach((box) => drawBox(box));
+        }
+
+        function addBox() {
+            const boxLength = parseFloat(document.getElementById("boxLength").value);
+            const boxWidth = parseFloat(document.getElementById("boxWidth").value);
+
+            if (isNaN(boxLength) || isNaN(boxWidth)) {
+                alert("Please enter valid numerical values for the box.");
+                return;
+            }
+
+            const box = {
+                x: (canvas.width - boxLength * scaleFactor) / 2,
+                y: (canvas.height - boxWidth * scaleFactor) / 2,
+                width: boxLength * scaleFactor,
+                height: boxWidth * scaleFactor,
+                locked: false,
+            };
+
+            boxes.push(box);
+            activeBox = box;
+
+            document.getElementById("lockButton").style.display = "block";
+            document.getElementById("unlockButton").style.display = "none";
+
+            drawPallet();
+        }
+
+        function drawBox(box) {
+            ctx.drawImage(boxImage, box.x, box.y, box.width, box.height);
+        }
+
+        canvas.addEventListener("mousedown", (e) => {
+            if (!activeBox || activeBox.locked) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            if (
+                mouseX >= activeBox.x &&
+                mouseX <= activeBox.x + activeBox.width &&
+                mouseY >= activeBox.y &&
+                mouseY <= activeBox.y + activeBox.height
+            ) {
+                activeBox.isDragging = true;
+                activeBox.offsetX = mouseX - activeBox.x;
+                activeBox.offsetY = mouseY - activeBox.y;
+            }
+        });
+
+        canvas.addEventListener("mousemove", (e) => {
+            if (!activeBox || !activeBox.isDragging) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            activeBox.x = mouseX - activeBox.offsetX;
+            activeBox.y = mouseY - activeBox.offsetY;
+
+            drawPallet();
+        });
+
+        canvas.addEventListener("mouseup", () => {
+            if (activeBox) activeBox.isDragging = false;
+        });
+
+        function lockBox() {
+            if (!activeBox) return;
+
+            activeBox.locked = true;
+
+            const palletCenterX = canvas.width / 2;
+            const palletCenterY = canvas.height / 2;
+
+            const boxCenterX = activeBox.x + activeBox.width / 2;
+            const boxCenterY = activeBox.y + activeBox.height / 2;
+
+            const position = {
+                x: ((boxCenterX - palletCenterX) / scaleFactor).toFixed(2),
+                y: ((palletCenterY - boxCenterY) / scaleFactor).toFixed(2),
+            };
+
+            document.getElementById("positionList").innerHTML += `<li>Box ${boxes.length} = [x: ${position.x}, y: ${position.y}]</li>`;
+
+            document.getElementById("lockButton").style.display = "none";
+            document.getElementById("unlockButton").style.display = "block";
+
+            drawPallet();
+        }
+
+        function unlockBox() {
+            if (!activeBox) return;
+
+            activeBox.locked = false;
+
+            document.getElementById("lockButton").style.display = "block";
+            document.getElementById("unlockButton").style.display = "none";
+
+            drawPallet();
+        }
+    </script>
+</body>
+</html>
+
+
+
+
